@@ -32,5 +32,5 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", path: "shell/nvm_install.sh", privileged: false
 
   # shared folders setup using RSYNC
-  config.vm.synced_folder "src/", "/home/vagrant/src", type: "rsync"
+  config.vm.synced_folder "src/", "/home/vagrant/src", type: "rsync", rsync__exclude: [".vscode/", ".git/", "node_modules/"]
 end

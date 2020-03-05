@@ -6,7 +6,7 @@ All of the required softwares and tools has been included in the `Vagrantfile` a
 
 ## Installation ##
 
-## Running the Proxy Classifier ##
+## Running ##
 
 - - - -
 

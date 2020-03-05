@@ -7,10 +7,15 @@
     "start": "node app.js"
   },
   "author": "Yustus Oktian",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:mrkazawa/proxy_classifier.git"
+  },
   "license": "MIT",
   "dependencies": {
     "body-parser": "^1.19.0",
     "chalk": "^3.0.0",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "sqlite": "^3.0.3"
   }
 }
