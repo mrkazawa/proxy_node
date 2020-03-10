@@ -15,11 +15,6 @@ if [[ ! -f $NVM_INSTALLER ]]; then
     # Install given node version and make it default
     nvm install 10.18.0
     nvm alias default 10.18.0
-
-    # Install ganache-cli
-    npm install -g ganache-cli
-    # Install truffle
-    npm install -g truffle
 else
     echo "Skipping, NVM is already installed"
 fi

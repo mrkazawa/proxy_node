@@ -14,9 +14,11 @@ class SQLiteWrapper {
 
   async connectToDB() {
     try {
-      this.db = await sqlite.open('./database/proxy.sqlite', { Promise });
+      this.db = await sqlite.open('./database/proxy.sqlite', {
+        Promise
+      });
       log(chalk.cyan('Connected to the Proxy database.'));
-    } catch(err) {
+    } catch (err) {
       log(chalk.red(`ERROR ${err}`));
       process.exitCode = 1;
     }
@@ -32,6 +34,16 @@ class SQLiteWrapper {
     await this.db.run(sql);
   }
 
+  async saveRequest(priority_id, request) {
+    const sql = `INSERT INTO requests (priority_id, request) VALUES (${priority_id}, "${request}")`;
+    console.log(sql);
+    try {
+      const statement = await this.db.run(sql);
+      console.log(statement.lastID);
+    } catch (err) {
+      log(chalk.red(`ERROR ${err}`));
+    }
+  }
 }
 
 module.exports = SQLiteWrapper;

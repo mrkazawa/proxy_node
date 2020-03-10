@@ -9,19 +9,31 @@ const HTTP_PORT = process.env.HTTP_PORT || 3001;
 
 const Database = require('./database/wrapper_sqlite');
 
+const db = new Database();
+
+async function main() {
+  await db.connectToDB();
+  await db.createTable();
+}
+
 const app = express();
 app.use(bodyParser.json());
 
-app.post('/set', async (req, res) => {
+app.post('/new_request', async (req, res) => {
   const { data } = req.body;
+  const dataInBase64 = Buffer.from(JSON.stringify(data)).toString('base64');
 
-
+  try {
+    await db.saveRequest(data.priority_id, dataInBase64);
+    res.status(200).send('request is saved');
+  } catch {
+    res.status(500).send('something wrong in the database insertion');
+  }
 });
 
 
 app.get('/get', async (req, res) => {
-
-
+  res.status(200).send('transaction_received');
 });
 
 
@@ -33,14 +45,6 @@ app.get('/delete', (req, res) => {
 app.listen(HTTP_PORT, () => {
   log(chalk.cyan(`Hit me up on ${HOSTNAME}.local:${HTTP_PORT}`));
 });
-
-const db = new Database();
-
-async function main() {
-  await db.connectToDB();
-  await db.createTable();
-  console.log(db);
-}
 
 // starts the database
 main();
