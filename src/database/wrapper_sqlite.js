@@ -14,9 +14,7 @@ class SQLiteWrapper {
 
   async connectToDB() {
     try {
-      this.db = await sqlite.open('./database/proxy.sqlite', {
-        Promise
-      });
+      this.db = await sqlite.open('./database/proxy.sqlite');
       log(chalk.cyan('Connected to the Proxy database.'));
     } catch (err) {
       log(chalk.red(`ERROR ${err}`));
@@ -36,10 +34,18 @@ class SQLiteWrapper {
 
   async saveRequest(priority_id, request) {
     const sql = `INSERT INTO requests (priority_id, request) VALUES (${priority_id}, "${request}")`;
-    console.log(sql);
     try {
       const statement = await this.db.run(sql);
       console.log(statement.lastID);
+    } catch (err) {
+      log(chalk.red(`ERROR ${err}`));
+    }
+  }
+
+  async countRequest(priority_id) {
+    const sql = `SELECT COUNT(*) AS count FROM requests WHERE priority_id = ${priority_id}`;
+    try {
+      return await this.db.get(sql);
     } catch (err) {
       log(chalk.red(`ERROR ${err}`));
     }

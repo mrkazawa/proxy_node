@@ -22,18 +22,23 @@ app.use(bodyParser.json());
 app.post('/new_request', async (req, res) => {
   const { data } = req.body;
   const dataInBase64 = Buffer.from(JSON.stringify(data)).toString('base64');
+  //console.log(Buffer.from("SGVsbG8gV29ybGQ=", 'base64').toString('ascii'));
 
   try {
     await db.saveRequest(data.priority_id, dataInBase64);
     res.status(200).send('request is saved');
   } catch {
-    res.status(500).send('something wrong in the database insertion');
+    res.status(500).send('something wrong in the database');
   }
 });
 
-
-app.get('/get', async (req, res) => {
-  res.status(200).send('transaction_received');
+app.get('/request_count', async (req, res) => {
+  try {
+    const count = await db.countRequest(3);
+    res.status(200).send(count);
+  } catch {
+    res.status(500).send('something wrong in the database');
+  }
 });
 
 
