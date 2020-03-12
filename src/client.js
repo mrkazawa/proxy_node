@@ -1,7 +1,21 @@
 const rp = require('request-promise-native');
 
 function main() {
-  const payload = {
+  const insertUrl = 'http://proxy1.local:3001/new_request';
+  const insertOption = createPostRequest(insertUrl, createPayload());
+  executeRequest(insertOption);
+
+  const countUrl = 'http://proxy1.local:3001/request_count';
+  const countOption = createGetRequest(countUrl);
+  executeRequest(countOption);
+
+  const getAllUrl = 'http://proxy1.local:3001/requests'
+  const getAllOption = createGetRequest(getAllUrl);
+  executeRequest(getAllOption);
+}
+
+function createPayload() {
+  return {
     data: {
       app_id: "car_rental_2020",
       task_id: 45637,
@@ -14,40 +28,28 @@ function main() {
       timestamp: Date.now()
     }
   };
+}
 
-  let options = {
+function createPostRequest(url, body) {
+  return {
     method: 'POST',
-    uri: 'http://proxy1.local:3001/new_request',
-    body: payload,
+    uri: url,
+    body: body,
     resolveWithFullResponse: true,
-    json: true // Automatically stringifies the body to JSON
+    json: true, // Automatically stringifies the body to JSON
   };
-  rp(options).then(function (response) {
-    console.log('Response status code: ', response.statusCode)
-    console.log('Response body: ', response.body);
-  }).catch(function (err) {
-    console.log(err);
-  });
+}
 
-  options = {
+function createGetRequest(url) {
+  return {
     method: 'GET',
-    uri: 'http://proxy1.local:3001/request_count',
+    uri: url,
     resolveWithFullResponse: true,
-    json: true // Automatically stringifies the body to JSON
+    json: true, // Automatically stringifies the body to JSON
   };
-  rp(options).then(function (response) {
-    console.log('Response status code: ', response.statusCode)
-    console.log('Response body: ', response.body);
-  }).catch(function (err) {
-    console.log(err);
-  });
+}
 
-  options = {
-    method: 'GET',
-    uri: 'http://proxy1.local:3001/requests',
-    resolveWithFullResponse: true,
-    json: true // Automatically stringifies the body to JSON
-  };
+function executeRequest(options) {
   rp(options).then(function (response) {
     console.log('Response status code: ', response.statusCode)
     console.log('Response body: ', response.body);

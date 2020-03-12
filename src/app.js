@@ -24,12 +24,10 @@ app.use(bodyParser.json());
 app.post('/new_request', async (req, res) => {
   const { data } = req.body;
   const dataInBase64 = Util.stringToBase64(JSON.stringify(data));
-  //const dataInBase64 = Buffer.from(JSON.stringify(data)).toString('base64');
-  //console.log(Buffer.from("SGVsbG8gV29ybGQ=", 'base64').toString('ascii'));
 
   try {
-    await db.saveRequest(data.priority_id, dataInBase64);
-    res.status(200).send('request is saved');
+    const lastId = await db.saveRequest(data.priority_id, dataInBase64);
+    res.status(200).send(`Inserted with ID ${lastId}`);
   } catch {
     res.status(500).send('something wrong in the database');
   }
@@ -46,7 +44,8 @@ app.get('/request_count', async (req, res) => {
 
 app.get('/requests', async (req, res) => {
   try {
-    const requests = await db.getRequestsByPriorityAndLimit(3, 1);
+    const requestsBase64 = await db.getRequestsByPriorityAndLimit(3, 2);
+    const requests = Util.convertBase64RequestToString(requestsBase64);
     res.status(200).send(requests);
   } catch {
     res.status(500).send('something wrong in the database');

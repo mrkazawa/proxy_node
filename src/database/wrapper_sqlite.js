@@ -27,23 +27,29 @@ class SQLiteWrapper {
     CREATE TABLE IF NOT EXISTS requests ( \
         request_id INTEGER PRIMARY KEY AUTOINCREMENT, \
         priority_id INTEGER NOT NULL, \
-        request TEXT NOT NULL \
+        request TEXT NOT NULL, \
+        created_date TEXT NOT NULL \
     );';
+
     await this.db.run(sql);
   }
 
   async saveRequest(priority_id, request) {
-    const sql = `INSERT INTO requests (priority_id, request) VALUES (${priority_id}, "${request}")`;
+    const sql = `INSERT INTO requests (priority_id, request, created_date) \
+        VALUES (${priority_id}, '${request}', datetime('now', 'localtime'))`;
+
     try {
       const statement = await this.db.run(sql);
-      console.log(statement.lastID);
+      return statement.lastID;
     } catch (err) {
       log(chalk.red(`ERROR ${err}`));
     }
   }
 
   async countRequestsByPriority(priority_id) {
-    const sql = `SELECT COUNT(*) AS count FROM requests WHERE priority_id = ${priority_id}`;
+    const sql = `SELECT COUNT(*) AS count FROM requests \
+        WHERE priority_id = ${priority_id}`;
+
     try {
       return await this.db.get(sql);
     } catch (err) {
@@ -52,7 +58,11 @@ class SQLiteWrapper {
   }
 
   async getRequestsByPriorityAndLimit(priority_id, limit) {
-    const sql = `SELECT request FROM requests WHERE priority_id = ${priority_id}`;
+    const sql = `SELECT request FROM requests \
+        WHERE priority_id = ${priority_id} \
+        ORDER BY created_date ASC \
+        LIMIT ${limit}`;
+
     try {
       return await this.db.all(sql);
     } catch (err) {
