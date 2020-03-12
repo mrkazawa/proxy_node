@@ -41,6 +41,19 @@ function main() {
   }).catch(function (err) {
     console.log(err);
   });
+
+  options = {
+    method: 'GET',
+    uri: 'http://proxy1.local:3001/requests',
+    resolveWithFullResponse: true,
+    json: true // Automatically stringifies the body to JSON
+  };
+  rp(options).then(function (response) {
+    console.log('Response status code: ', response.statusCode)
+    console.log('Response body: ', response.body);
+  }).catch(function (err) {
+    console.log(err);
+  });
 }
 
 main();

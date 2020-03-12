@@ -42,10 +42,19 @@ class SQLiteWrapper {
     }
   }
 
-  async countRequest(priority_id) {
+  async countRequestsByPriority(priority_id) {
     const sql = `SELECT COUNT(*) AS count FROM requests WHERE priority_id = ${priority_id}`;
     try {
       return await this.db.get(sql);
+    } catch (err) {
+      log(chalk.red(`ERROR ${err}`));
+    }
+  }
+
+  async getRequestsByPriorityAndLimit(priority_id, limit) {
+    const sql = `SELECT request FROM requests WHERE priority_id = ${priority_id}`;
+    try {
+      return await this.db.all(sql);
     } catch (err) {
       log(chalk.red(`ERROR ${err}`));
     }
