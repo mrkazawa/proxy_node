@@ -1,6 +1,3 @@
-const chalk = require('chalk');
-const log = console.log;
-
 class Util {
   constructor() {
     if (Util._instance) {
@@ -17,13 +14,13 @@ class Util {
     return Buffer.from(base64String, 'base64').toString('ascii');
   }
 
-  static convertBase64RequestToString(base64Obj) {
-    let requests = [];
-    base64Obj.forEach(element => {
-      requests.push(this.base64ToString(element.request));
+  static convertRequestToString(requests) {
+    let convertedRequests = [];
+    requests.forEach(element => {
+      convertedRequests.push(this.base64ToString(element.request));
     });
     
-    return requests;
+    return convertedRequests;
   }
 }
 
