@@ -35,6 +35,8 @@ app.post('/new_request', async (req, res) => {
   } else {
     res.status(200).send(`Request is received`);
   }
+
+  sendToNotaryNode();
 });
 
 app.get('/request_count', async (req, res) => {
@@ -62,6 +64,58 @@ app.listen(HTTP_PORT, () => {
 
 // starts the database
 main();
+
+
+
+
+const rp = require('request-promise-native');
+const RateLimiter = require('limiter').RateLimiter;
+const limiter = new RateLimiter(3000, 'second');
+
+async function throttle() {
+  if (limiter.tryRemoveTokens(3)) {
+    //console.log('Tokens removed');
+    await sendToNotaryNode();
+  } else {
+    console.log('No tokens removed');
+  }
+}
+
+async function sendToNotaryNode() {
+  const url = 'http://notary1.local:3000/transact';
+  const payload = await getPayload();
+  //console.log(payload);
+
+  const option = createPostRequest(url, {data:payload});
+  executeRequest(option);
+}
+
+async function getPayload() {
+  const payload = await db.getRequestsByPriorityAndLimit(3, 1);
+  return JSON.parse(payload);
+}
+
+function createPostRequest(url, body) {
+  return {
+    method: 'POST',
+    uri: url,
+    body: body,
+    resolveWithFullResponse: true,
+    json: true, // Automatically stringifies the body to JSON
+  };
+}
+
+function executeRequest(options) {
+  rp(options).then(function (response) {
+    if (response.statusCode != 200) {
+      log(chalk.red(`Error with status code ${response.statusCode}`));
+    }
+  }).catch(function (err) {
+    log(chalk.red(`Error ${err}`));
+  });
+}
+
+//setInterval(throttle, 1000);
 
 /*
 https://stackoverflow.com/questions/16554808/leveldb-iterate-keys-by-insertion-order

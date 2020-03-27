@@ -1,4 +1,4 @@
-const REQUEST_PENDING_THRESHOLD = 300;
+const REQUEST_PENDING_THRESHOLD = 1000;
 
 class RequestPool {
   constructor() {

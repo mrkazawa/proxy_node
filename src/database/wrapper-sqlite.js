@@ -19,7 +19,7 @@ class SQLiteWrapper {
       this.db = await sqlite.open('./database/proxy.sqlite');
       log(chalk.cyan('Connected to the Proxy database.'));
     } catch (err) {
-      log(chalk.red(`ERROR ${err}`));
+      log(chalk.bgRed.black(`FATAL ERROR ${err}`));
       process.exitCode = 1;
     }
   }
