@@ -18,7 +18,7 @@ const payload_400_bytes = {
 
 const instance = autocannon({
   title: 'Send Request To Proxy #1',
-  url: 'http://proxy1.local:3001/new_request',
+  url: 'http://proxy1.local:3001/relay_request',
   method: 'POST',
   headers: {
     "content-type": "application/json"
