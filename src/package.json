@@ -4,8 +4,8 @@
   "description": "Proxy server for accessing the Core Engine",
   "main": "app.js",
   "scripts": {
-    "start": "node --experimental-worker app.js",
-    "worker": "node --experimental-worker run_worker.js"
+    "start": "node --experimental-worker app2.js",
+    "worker": "node --experimental-worker worker2.js"
   },
   "author": "Yustus Oktian",
   "repository": {
@@ -15,11 +15,16 @@
   "license": "MIT",
   "dependencies": {
     "autocannon": "^4.6.0",
+    "better-sqlite3": "^6.0.1",
     "body-parser": "^1.19.0",
     "chalk": "^3.0.0",
     "express": "^4.17.1",
+    "fs-extra": "^9.0.0",
+    "leveldown": "^5.6.0",
+    "levelup": "^4.3.2",
     "limiter": "^1.1.5",
     "request-promise-native": "^1.0.8",
-    "sqlite": "^3.0.3"
+    "sqlite": "^3.0.3",
+    "uuid": "^7.0.3"
   }
 }
