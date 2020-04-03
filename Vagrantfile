@@ -5,8 +5,8 @@
 # https://manski.net/2016/09/vagrant-multi-machine-tutorial/
 
 BOX_IMAGE = "bento/ubuntu-16.04"
-BOX_MEMORY = "4096"
-BOX_CPU = 2
+BOX_MEMORY = "1024"
+BOX_CPU = 1
 
 PROXY_COUNT = 1
 

@@ -10,7 +10,7 @@ const HTTP_PORT = process.env.HTTP_PORT || 3001;
 
 const levelup = require('levelup');
 const leveldown = require('leveldown');
-const uuidV1 = require('uuid/v1');
+const { v1: uuidV1 } = require('uuid');
 
 const highDB = levelup(leveldown('./high_priority'));
 const mediumDB = levelup(leveldown('./medium_priority'));
