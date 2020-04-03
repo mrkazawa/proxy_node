@@ -11,6 +11,10 @@ const HTTP_PORT = process.env.HTTP_PORT || 3001;
 const Database = require('better-sqlite3');
 const db = new Database('proxy.db');
 createTable();
+clearTable();
+
+const pendingRequests = new Set();
+const PENDING_REQUEST_THRESHOLD = 100;
 
 const isUsingPriority = true;
 
@@ -28,19 +32,28 @@ app.post('/relay_request', async (req, res) => {
     data
   } = req.body;
 
-  const dataInBase64 = stringToBase64(JSON.stringify(data));
+  pendingRequests.add(data);
+  if (pendingRequests.size >= PENDING_REQUEST_THRESHOLD) {
 
-  const sql = `INSERT INTO requests \
-    (priority_id, request, created_date) VALUES \
-    (${data.priority_id}, '${dataInBase64}', datetime('now', 'localtime'))`;
+    let rows = [];
+    pendingRequests.forEach(element => {
+      const dataInBase64 = stringToBase64(JSON.stringify(element));
+      const row = `(${element.priority_id}, '${dataInBase64}', datetime('now', 'localtime'))`;
+      rows.push(row);
+    });
 
-  const stmt = db.prepare(sql);
-  const info = stmt.run();
+    const placeholders = rows.join(',');
+    const sql = `INSERT INTO requests (priority_id, request, created_date) VALUES ${placeholders}`;
+    const info = db.prepare(sql).run();
 
-  if (info.changes > 0) {
-    res.status(200).send('request is received');
+    if (info.changes > 0) {
+      pendingRequests.clear();
+      res.status(200).send('request is received, queue is cleared and stored in the database');
+    } else {
+      res.status(500).send('some problem in the database insert');
+    }
   } else {
-    res.status(500).send('some problem in the database insert');
+    res.status(200).send('request is received and stored in the queue');
   }
 });
 
@@ -54,7 +67,7 @@ let immediateId;
 let counter = 0;
 
 // execute loop sending to notary
-sendToNotary();
+//sendToNotary();
 
 // this is used to kill the instance on CTRL-C
 process.once('SIGINT', () => {
@@ -83,7 +96,7 @@ function deleteByRange(lowestId, highestId) {
 
 function sendToNotary() {
   const url = 'http://notary4.local:3000/transact';
-  const rows = getByPriorityLimited(PRIORITY_TYPE.high, 100);
+  const rows = getByPriorityLimited(PRIORITY_TYPE.high, 3000);
 
   if (rows.length > 0) {
     let ids = [];
@@ -124,6 +137,11 @@ function executeRequest(options) {
   });
 }
 
+function clearTable() {
+  const sql = 'DELETE FROM requests';
+  db.prepare(sql).run();
+}
+
 function createTable() {
   const sql = ' \
     CREATE TABLE IF NOT EXISTS requests ( \
@@ -133,8 +151,7 @@ function createTable() {
         created_date TEXT NOT NULL \
     );';
 
-  const stmt = db.prepare(sql);
-  stmt.run();
+  db.prepare(sql).run();
 }
 
 function stringToBase64(string) {
