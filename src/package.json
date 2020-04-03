@@ -4,8 +4,8 @@
   "description": "Proxy server for accessing the Core Engine",
   "main": "app.js",
   "scripts": {
-    "start": "node --experimental-worker app2.js",
-    "worker": "node --experimental-worker worker2.js"
+    "sqlite": "node --experimental-worker app2.js",
+    "level": "node --experimental-worker app.js"
   },
   "author": "Yustus Oktian",
   "repository": {

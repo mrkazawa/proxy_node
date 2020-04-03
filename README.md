@@ -41,6 +41,13 @@ npm run start # this will run app.js
 
 - - - -
 
+## When address is already used ##
+
+```bash
+sudo kill -9 `sudo lsof -t -i:3001`
+sudo kill -9 $(sudo lsof -t -i:9001)
+```
+
 ## Authors ##
 
 * **Yustus Oktian** - *Initial work*
