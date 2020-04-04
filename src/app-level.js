@@ -77,22 +77,17 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-let immediateId;
-let counter = 0;
-
-// execute loop sending to notary
-//sendToNotary();
-setInterval(sendToNotary, 1000);
+const periodicSending = setInterval(sendToNotary, 1000);
 
 // this is used to kill the instance on CTRL-C
 process.once('SIGINT', () => {
-  clearImmediate(immediateId);
+  clearInterval(periodicSending);
 });
 
 function sendToNotary() {
   const url = 'http://notary4.local:3000/transact';
 
-  highDB.createReadStream()
+  highDB.createReadStream({limit: 500})
     .on('data', function (data) {
       const key = data.key.toString('utf8');
       const value = JSON.parse(data.value.toString('utf8'));
@@ -105,16 +100,40 @@ function sendToNotary() {
       highDB.del(key);
     })
     .on('error', function (err) {
-      console.log('Oh my!', err)
-    })
-    .on('close', function () {
-      //console.log('Stream closed')
-    })
-    .on('end', function () {
-      //console.log('Stream ended')
+      log(chalk.red(`High Priority Streaming Error! ${err}`));
     })
 
-  //immediateId = setImmediate(sendToNotary);
+  mediumDB.createReadStream({limit: 350})
+    .on('data', function (data) {
+      const key = data.key.toString('utf8');
+      const value = JSON.parse(data.value.toString('utf8'));
+
+      const option = createPostRequest(url, {
+        data: value
+      });
+      executeRequest(option);
+      
+      mediumDB.del(key);
+    })
+    .on('error', function (err) {
+      log(chalk.red(`Medium Priority Streaming Error! ${err}`));
+    })
+
+  lowDB.createReadStream({limit: 150})
+    .on('data', function (data) {
+      const key = data.key.toString('utf8');
+      const value = JSON.parse(data.value.toString('utf8'));
+
+      const option = createPostRequest(url, {
+        data: value
+      });
+      executeRequest(option);
+      
+      lowDB.del(key);
+    })
+    .on('error', function (err) {
+      log(chalk.red(`Low Priority Streaming Error! ${err}`));
+    })
 }
 
 function createPostRequest(url, body) {
