@@ -77,17 +77,25 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-const periodicSending = setInterval(sendToNotary, 1000);
+const highPriorityInterval = setInterval(sendHighPriorityToNotary, 1000);
+const mediumPriorityInterval = setInterval(sendMediumPriorityToNotary, 1000);
+const lowPriorityInterval = setInterval(sendLowPriorityToNotary, 1000);
+
+let failCounter = 0; // bailout counter
 
 // this is used to kill the instance on CTRL-C
 process.once('SIGINT', () => {
-  clearInterval(periodicSending);
+  clearInterval(highPriorityInterval);
+  clearInterval(mediumPriorityInterval);
+  clearInterval(lowPriorityInterval);
 });
 
-function sendToNotary() {
+function sendHighPriorityToNotary() {
+  isSomethingWrongWithNotary();
+
   const url = 'http://notary4.local:3000/transact';
 
-  highDB.createReadStream({limit: 500})
+  highDB.createReadStream({limit: 550})
     .on('data', function (data) {
       const key = data.key.toString('utf8');
       const value = JSON.parse(data.value.toString('utf8'));
@@ -102,8 +110,14 @@ function sendToNotary() {
     .on('error', function (err) {
       log(chalk.red(`High Priority Streaming Error! ${err}`));
     })
+}
 
-  mediumDB.createReadStream({limit: 350})
+function sendMediumPriorityToNotary() {
+  isSomethingWrongWithNotary();
+
+  const url = 'http://notary4.local:3000/transact';
+
+  mediumDB.createReadStream({limit: 300})
     .on('data', function (data) {
       const key = data.key.toString('utf8');
       const value = JSON.parse(data.value.toString('utf8'));
@@ -118,6 +132,12 @@ function sendToNotary() {
     .on('error', function (err) {
       log(chalk.red(`Medium Priority Streaming Error! ${err}`));
     })
+}
+
+function sendLowPriorityToNotary() {
+  isSomethingWrongWithNotary();
+
+  const url = 'http://notary4.local:3000/transact';
 
   lowDB.createReadStream({limit: 150})
     .on('data', function (data) {
@@ -136,6 +156,20 @@ function sendToNotary() {
     })
 }
 
+function isSomethingWrongWithNotary() {
+  // check the fail bailout, if we see more than 50 errors
+  // while sending to the notary
+  // probably, the notary is down.
+
+  if (failCounter > 10000) {
+    clearInterval(highPriorityInterval);
+    clearInterval(mediumPriorityInterval);
+    clearInterval(lowPriorityInterval);
+
+    process.exit(69);
+  }
+}
+
 function createPostRequest(url, body) {
   return {
     method: 'POST',
@@ -152,6 +186,7 @@ function executeRequest(options) {
       log(chalk.red(`Error with status code ${response.statusCode}`));
     }
   }).catch(function (err) {
+    failCounter ++;
     log(chalk.red(`Error ${err}`));
   });
 }

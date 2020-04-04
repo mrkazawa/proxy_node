@@ -98,8 +98,8 @@ function registerDoneEvent(instance) {
     console.log(`Avg Tput (Req/sec): ${results.requests.average}`);
     console.log(`Avg Lat (ms): ${results.latency.average}`);
 
-    //const row = instance.opts.title + "," + results.requests.average + "," + results.latency.average + "\r\n";
-    //fs.appendFileSync(RESULT_PATH, row);
+    const row = instance.opts.title + "," + results.requests.average + "," + results.latency.average + "\r\n";
+    fs.appendFileSync(RESULT_PATH, row);
 
     //const option = createGetRequest(txCountPerBlockURL);
     //executeRequest(`Getting Tx Count Per Block`, option);
