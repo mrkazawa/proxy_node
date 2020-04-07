@@ -6,7 +6,8 @@
   "scripts": {
     "sqlite": "node --experimental-worker app-sqlite.js",
     "level": "node --experimental-worker app-level.js",
-    "posters": "node ./examples/run_post.js"
+    "posters": "node ./examples/run_post.js",
+    "bench-priority": "node ./benchmark/with_priority.js"
   },
   "author": "Yustus Oktian",
   "repository": {

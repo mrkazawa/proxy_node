@@ -79,8 +79,6 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-let failCounter = 0; // bailout counter
-
 const targetURL = assignTargetURL(HOSTNAME);
 
 const highPriorityInterval = setInterval(function () {
@@ -94,10 +92,14 @@ const lowPriorityInterval = setInterval(function () {
 }, 1000);
 
 // this is used to kill the instance on CTRL-C
-process.once('SIGINT', () => {
+process.on('SIGINT', function() {
+  console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" );
+
   clearInterval(highPriorityInterval);
   clearInterval(mediumPriorityInterval);
   clearInterval(lowPriorityInterval);
+
+  process.exit(69);
 });
 
 function assignTargetURL(hostname) {
@@ -123,8 +125,6 @@ function assignTargetURL(hostname) {
  * @param {number} limit  The limit to open the Read Stream API
  */
 function sendToNotary(db, limit, url) {
-  isSomethingWrongWithNotary(10000);
-
   db.createReadStream({
       limit: limit
     })
@@ -144,23 +144,6 @@ function sendToNotary(db, limit, url) {
     })
 }
 
-/**
- * Check the fail bailout, if we see more errors than given threshold
- * while sending data to the notary node, then probably the
- * notary node is down.
- * 
- * @param {number} bailout    The bailout threshold
- */
-function isSomethingWrongWithNotary(bailout) {
-  if (failCounter > bailout) {
-    clearInterval(highPriorityInterval);
-    clearInterval(mediumPriorityInterval);
-    clearInterval(lowPriorityInterval);
-
-    process.exit(69);
-  }
-}
-
 function createPostRequestOption(url, body) {
   return {
     method: 'POST',
@@ -177,7 +160,6 @@ function executeRequest(options) {
       log(chalk.red(`Error with status code ${response.statusCode}`));
     }
   }).catch(function (err) {
-    failCounter++;
     log(chalk.red(`Error ${err}`));
   });
 }

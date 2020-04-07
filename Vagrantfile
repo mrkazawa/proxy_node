@@ -8,7 +8,7 @@ BOX_IMAGE = "bento/ubuntu-16.04"
 BOX_MEMORY = "1024"
 BOX_CPU = 1
 
-PROXY_COUNT = 1
+PROXY_COUNT = 4
 
 Vagrant.configure("2") do |config|
   (1..PROXY_COUNT).each do |i|
