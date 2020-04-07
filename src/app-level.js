@@ -10,7 +10,9 @@ const HTTP_PORT = process.env.HTTP_PORT || 3001;
 
 const levelup = require('levelup');
 const leveldown = require('leveldown');
-const { v1: uuidV1 } = require('uuid');
+const {
+  v1: uuidV1
+} = require('uuid');
 
 const highDB = levelup(leveldown('./high_priority'));
 const mediumDB = levelup(leveldown('./medium_priority'));
@@ -77,11 +79,19 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-const highPriorityInterval = setInterval(sendHighPriorityToNotary, 1000);
-const mediumPriorityInterval = setInterval(sendMediumPriorityToNotary, 1000);
-const lowPriorityInterval = setInterval(sendLowPriorityToNotary, 1000);
-
 let failCounter = 0; // bailout counter
+
+const targetURL = assignTargetURL(HOSTNAME);
+
+const highPriorityInterval = setInterval(function () {
+  sendToNotary(highDB, 550, targetURL);
+}, 1000);
+const mediumPriorityInterval = setInterval(function () {
+  sendToNotary(mediumDB, 300, targetURL);
+}, 1000);
+const lowPriorityInterval = setInterval(function () {
+  sendToNotary(lowDB, 150, targetURL);
+}, 1000);
 
 // this is used to kill the instance on CTRL-C
 process.once('SIGINT', () => {
@@ -90,78 +100,59 @@ process.once('SIGINT', () => {
   clearInterval(lowPriorityInterval);
 });
 
-function sendHighPriorityToNotary() {
-  isSomethingWrongWithNotary();
+function assignTargetURL(hostname) {
+  if (hostname == 'proxy1') {
+    return 'http://notary1.local:3000/transact';
 
-  const url = 'http://notary4.local:3000/transact';
+  } else if (hostname == 'proxy2') {
+    return `http://notary2.local:3000/transact`;
 
-  highDB.createReadStream({limit: 550})
+  } else if (hostname == 'proxy3') {
+    return `http://notary3.local:3000/transact`;
+
+  } else if (hostname == 'proxy4') {
+    return `http://notary4.local:3000/transact`;
+  }
+}
+
+/**
+ * Iterate over the contents of level DB and send the value to
+ * the corresponding notary nodes.
+ * 
+ * @param {object} db     Level DB object, the database object
+ * @param {number} limit  The limit to open the Read Stream API
+ */
+function sendToNotary(db, limit, url) {
+  isSomethingWrongWithNotary(10000);
+
+  db.createReadStream({
+      limit: limit
+    })
     .on('data', function (data) {
       const key = data.key.toString('utf8');
       const value = JSON.parse(data.value.toString('utf8'));
 
-      const option = createPostRequest(url, {
+      const option = createPostRequestOption(url, {
         data: value
       });
       executeRequest(option);
-      
-      highDB.del(key);
+
+      db.del(key);
     })
     .on('error', function (err) {
-      log(chalk.red(`High Priority Streaming Error! ${err}`));
+      log(chalk.red(`Streaming Error! ${err}`));
     })
 }
 
-function sendMediumPriorityToNotary() {
-  isSomethingWrongWithNotary();
-
-  const url = 'http://notary4.local:3000/transact';
-
-  mediumDB.createReadStream({limit: 300})
-    .on('data', function (data) {
-      const key = data.key.toString('utf8');
-      const value = JSON.parse(data.value.toString('utf8'));
-
-      const option = createPostRequest(url, {
-        data: value
-      });
-      executeRequest(option);
-      
-      mediumDB.del(key);
-    })
-    .on('error', function (err) {
-      log(chalk.red(`Medium Priority Streaming Error! ${err}`));
-    })
-}
-
-function sendLowPriorityToNotary() {
-  isSomethingWrongWithNotary();
-
-  const url = 'http://notary4.local:3000/transact';
-
-  lowDB.createReadStream({limit: 150})
-    .on('data', function (data) {
-      const key = data.key.toString('utf8');
-      const value = JSON.parse(data.value.toString('utf8'));
-
-      const option = createPostRequest(url, {
-        data: value
-      });
-      executeRequest(option);
-      
-      lowDB.del(key);
-    })
-    .on('error', function (err) {
-      log(chalk.red(`Low Priority Streaming Error! ${err}`));
-    })
-}
-
-function isSomethingWrongWithNotary() {
-  // check the fail bailout, if we see more than 50 errors
-  // while sending to the notary
-  // probably, the notary is down.
-
-  if (failCounter > 10000) {
+/**
+ * Check the fail bailout, if we see more errors than given threshold
+ * while sending data to the notary node, then probably the
+ * notary node is down.
+ * 
+ * @param {number} bailout    The bailout threshold
+ */
+function isSomethingWrongWithNotary(bailout) {
+  if (failCounter > bailout) {
     clearInterval(highPriorityInterval);
     clearInterval(mediumPriorityInterval);
     clearInterval(lowPriorityInterval);
@@ -170,7 +161,7 @@ function isSomethingWrongWithNotary() {
   }
 }
 
-function createPostRequest(url, body) {
+function createPostRequestOption(url, body) {
   return {
     method: 'POST',
     uri: url,
@@ -186,7 +177,7 @@ function executeRequest(options) {
       log(chalk.red(`Error with status code ${response.statusCode}`));
     }
   }).catch(function (err) {
-    failCounter ++;
+    failCounter++;
     log(chalk.red(`Error ${err}`));
   });
 }
