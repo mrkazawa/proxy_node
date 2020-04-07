@@ -1,17 +1,9 @@
 const rp = require('request-promise-native');
 
 function main() {
-  const insertUrl = 'http://proxy1.local:3001/new_request';
-  const insertOption = createPostRequest(insertUrl, createPayload());
-  executeRequest(insertOption);
-
-  const countUrl = 'http://proxy1.local:3001/request_count';
-  const countOption = createGetRequest(countUrl);
-  executeRequest(countOption);
-
-  const getAllUrl = 'http://proxy1.local:3001/requests'
-  const getAllOption = createGetRequest(getAllUrl);
-  executeRequest(getAllOption);
+  const url = 'http://proxy1.local:3001/relay_request';
+  const option = createPostRequestOption(url, createPayload());
+  executeRequest(option);
 }
 
 function createPayload() {
@@ -30,20 +22,11 @@ function createPayload() {
   };
 }
 
-function createPostRequest(url, body) {
+function createPostRequestOption(url, body) {
   return {
     method: 'POST',
     uri: url,
     body: body,
-    resolveWithFullResponse: true,
-    json: true, // Automatically stringifies the body to JSON
-  };
-}
-
-function createGetRequest(url) {
-  return {
-    method: 'GET',
-    uri: url,
     resolveWithFullResponse: true,
     json: true, // Automatically stringifies the body to JSON
   };
