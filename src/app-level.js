@@ -7,7 +7,9 @@ const log = console.log;
 const os = require("os");
 const HOSTNAME = os.hostname();
 const HTTP_PORT = process.env.HTTP_PORT || 3001;
-const isUsingPriority = () => { return (process.env.USING_PRIORITY == "true") };
+const isUsingPriority = () => {
+  return (process.env.USING_PRIORITY == "true")
+};
 
 const levelup = require('levelup');
 const leveldown = require('leveldown');
@@ -46,6 +48,8 @@ const app = express();
 app.use(bodyParser.json());
 
 app.post('/relay_request', async (req, res) => {
+  //requestCount += 1;
+
   const {
     data
   } = req.body;
@@ -89,16 +93,30 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-const targetURL = assignTargetURL(HOSTNAME);
-
-let multiplierLimit = assignMultiplierLimit();
 const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
+const THRESHOLD_INTERVAL = 30; // the time threshold (seconds) to apply a new priority rule
+
+let highPriorityInterval;
+let mediumPriorityInterval;
+let lowPriorityInterval;
+
+/*const targetURL = assignTargetURL(HOSTNAME);
+const multiplierLimit = assignMultiplierLimit();
 
 let highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
 let mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
 let lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
 
-const highPriorityInterval = setInterval(function () {
+let requestCount = 0;
+let currentRequestRate = 0;
+const rateDetectionInterval = setInterval(setcurrentRate, 1000);
+
+function setcurrentRate() {
+  currentRequestRate = requestCount;
+  requestCount = 0;
+}*/
+
+/*const highPriorityInterval = setInterval(function () {
   sendToNotary(highDB, highDBSize, highLimit, targetURL);
 }, 1000);
 const mediumPriorityInterval = setInterval(function () {
@@ -106,18 +124,62 @@ const mediumPriorityInterval = setInterval(function () {
 }, 1000);
 const lowPriorityInterval = setInterval(function () {
   sendToNotary(lowDB, lowDBSize, lowLimit, targetURL);
-}, 1000);
+}, 1000);*/
 
-// this is used to kill the instance on CTRL-C
-process.on('SIGINT', function() {
-  console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" );
+setNewMultiplierLimit();
+const newMultiplierInterval = setInterval(setNewMultiplierLimit, THRESHOLD_INTERVAL * 1000);
+
+/**
+ * Used to kill using Ctrl-C
+ */
+process.on('SIGINT', function () {
+  log(chalk.bgRed.black(`\nGracefully shutting down from SIGINT (Ctrl-C)`));
 
   clearInterval(highPriorityInterval);
   clearInterval(mediumPriorityInterval);
   clearInterval(lowPriorityInterval);
 
+  clearInterval(newMultiplierInterval);
+
   process.exit(69);
 });
+
+function setNewMultiplierLimit() {
+  clearInterval(highPriorityInterval);
+  clearInterval(mediumPriorityInterval);
+  clearInterval(lowPriorityInterval);
+
+  const targetURL = assignTargetURL(HOSTNAME);
+  const multiplierLimit = assignMultiplierLimit();
+
+  const highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
+  const mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
+  const lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
+
+  log(chalk.bgYellow.black(`New Priority Set! ${multiplierLimit[0]}, ${multiplierLimit[1]}, ${multiplierLimit[2]}`));
+
+  highPriorityInterval = setInterval(function () {
+    sendToNotary(highDB, highDBSize, highLimit, targetURL);
+  }, 1000);
+  mediumPriorityInterval = setInterval(function () {
+    sendToNotary(mediumDB, mediumDBSize, mediumLimit, targetURL);
+  }, 1000);
+  lowPriorityInterval = setInterval(function () {
+    sendToNotary(lowDB, lowDBSize, lowLimit, targetURL);
+  }, 1000);
+}
+
+function isManyPendingHighPriority() {
+  return (highDBSize > MAX_THROUGHPUT / 3 * THRESHOLD_INTERVAL);
+}
+
+function isManyPendingMediumPriority() {
+  return (mediumDBSize > MAX_THROUGHPUT / 3 * THRESHOLD_INTERVAL);
+}
+
+function isManyPendingLowPriority() {
+  return (lowDBSize > MAX_THROUGHPUT / 3 * THRESHOLD_INTERVAL);
+}
 
 function assignTargetURL(hostname) {
   if (hostname == 'proxy1') {
@@ -134,12 +196,43 @@ function assignTargetURL(hostname) {
   }
 }
 
+/**
+ * Create a softmax array for multiplier limit for Stream API.
+ * The assignment is based on the current load, whether there are
+ * many pending requests in the store or not.
+ * 
+ * There are 8 scenarios following 3-bit binary permutation, which is
+ * 2 x 2 x 2 = 8
+ * 
+ * This function can returns 8 types of different scenarios.
+ */
 function assignMultiplierLimit() {
   if (isUsingPriority()) {
-    return [0.55, 0.35, 0.15];
-  } else {
-    return [0.34, 0.33, 0.33];
+
+    if (isManyPendingHighPriority() && isManyPendingMediumPriority() && isManyPendingLowPriority()) {
+      return [0.55, 0.30, 0.15];
+
+    } else if (isManyPendingHighPriority() && isManyPendingMediumPriority() && !isManyPendingLowPriority()) {
+      return [0.55, 0.40, 0.05];
+
+    } else if (isManyPendingHighPriority() && !isManyPendingMediumPriority() && isManyPendingLowPriority()) {
+      return [0.55, 0.05, 0.40];
+
+    } else if (isManyPendingHighPriority() && !isManyPendingMediumPriority() && !isManyPendingLowPriority()) {
+      return [0.90, 0.05, 0.05];
+
+    } else if (!isManyPendingHighPriority() && isManyPendingMediumPriority() && isManyPendingLowPriority()) {
+      return [0.05, 0.55, 0.40];
+
+    } else if (!isManyPendingHighPriority() && isManyPendingMediumPriority() && !isManyPendingLowPriority()) {
+      return [0.05, 0.90, 0.05];
+
+    } else if (!isManyPendingHighPriority() && !isManyPendingMediumPriority() && isManyPendingLowPriority()) {
+      return [0.05, 0.05, 0.90];
+    }
   }
+
+  return [0.34, 0.33, 0.33];
 }
 
 /**
