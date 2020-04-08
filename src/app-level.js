@@ -7,6 +7,7 @@ const log = console.log;
 const os = require("os");
 const HOSTNAME = os.hostname();
 const HTTP_PORT = process.env.HTTP_PORT || 3001;
+const isUsingPriority = () => { return (process.env.USING_PRIORITY == "true") };
 
 const levelup = require('levelup');
 const leveldown = require('leveldown');
@@ -17,6 +18,11 @@ const {
 const highDB = levelup(leveldown('./high_priority'));
 const mediumDB = levelup(leveldown('./medium_priority'));
 const lowDB = levelup(leveldown('./low_priority'));
+
+// use our own counter because we cannot query size from leveldown
+let highDBSize = 0;
+let mediumDBSize = 0;
+let lowDBSize = 0;
 
 if (
   !highDB.supports.permanence ||
@@ -29,8 +35,6 @@ if (
 highDB.clear();
 mediumDB.clear();
 lowDB.clear();
-
-const isUsingPriority = true;
 
 const PRIORITY_TYPE = {
   high: 1,
@@ -49,7 +53,9 @@ app.post('/relay_request', async (req, res) => {
   if (PRIORITY_TYPE.high == data.priority_id) {
     try {
       highDB.put(uuidV1(), JSON.stringify(data));
+      highDBSize += 1;
       res.status(200).send('request is received and stored in the database');
+
     } catch (err) {
       res.status(500).send(`something wrong in the database: ${err}`)
     }
@@ -57,7 +63,9 @@ app.post('/relay_request', async (req, res) => {
   } else if (PRIORITY_TYPE.medium == data.priority_id) {
     try {
       mediumDB.put(uuidV1(), JSON.stringify(data));
+      mediumDBSize += 1;
       res.status(200).send('request is received and stored in the database');
+
     } catch (err) {
       res.status(500).send(`something wrong in the database: ${err}`)
     }
@@ -65,7 +73,9 @@ app.post('/relay_request', async (req, res) => {
   } else if (PRIORITY_TYPE.low == data.priority_id) {
     try {
       lowDB.put(uuidV1(), JSON.stringify(data));
+      lowDBSize += 1;
       res.status(200).send('request is received and stored in the database');
+
     } catch (err) {
       res.status(500).send(`something wrong in the database: ${err}`)
     }
@@ -81,14 +91,21 @@ app.listen(HTTP_PORT, () => {
 
 const targetURL = assignTargetURL(HOSTNAME);
 
+let multiplierLimit = assignMultiplierLimit();
+const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
+
+let highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
+let mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
+let lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
+
 const highPriorityInterval = setInterval(function () {
-  sendToNotary(highDB, 550, targetURL);
+  sendToNotary(highDB, highDBSize, highLimit, targetURL);
 }, 1000);
 const mediumPriorityInterval = setInterval(function () {
-  sendToNotary(mediumDB, 300, targetURL);
+  sendToNotary(mediumDB, mediumDBSize, mediumLimit, targetURL);
 }, 1000);
 const lowPriorityInterval = setInterval(function () {
-  sendToNotary(lowDB, 150, targetURL);
+  sendToNotary(lowDB, lowDBSize, lowLimit, targetURL);
 }, 1000);
 
 // this is used to kill the instance on CTRL-C
@@ -117,6 +134,14 @@ function assignTargetURL(hostname) {
   }
 }
 
+function assignMultiplierLimit() {
+  if (isUsingPriority()) {
+    return [0.55, 0.35, 0.15];
+  } else {
+    return [0.34, 0.33, 0.33];
+  }
+}
+
 /**
  * Iterate over the contents of level DB and send the value to
  * the corresponding notary nodes.
@@ -124,7 +149,7 @@ function assignTargetURL(hostname) {
  * @param {object} db     Level DB object, the database object
  * @param {number} limit  The limit to open the Read Stream API
  */
-function sendToNotary(db, limit, url) {
+function sendToNotary(db, counter, limit, url) {
   db.createReadStream({
       limit: limit
     })
@@ -138,6 +163,7 @@ function sendToNotary(db, limit, url) {
       executeRequest(option);
 
       db.del(key);
+      counter -= 1;
     })
     .on('error', function (err) {
       log(chalk.red(`Streaming Error! ${err}`));
