@@ -48,8 +48,6 @@ const app = express();
 app.use(bodyParser.json());
 
 app.post('/relay_request', async (req, res) => {
-  //requestCount += 1;
-
   const {
     data
   } = req.body;
@@ -96,77 +94,37 @@ app.listen(HTTP_PORT, () => {
 const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
 const THRESHOLD_INTERVAL = 30; // the time threshold (seconds) to apply a new priority rule
 
-let highPriorityInterval;
-let mediumPriorityInterval;
-let lowPriorityInterval;
+const targetURL = assignTargetURL(HOSTNAME);
 
-/*const targetURL = assignTargetURL(HOSTNAME);
-const multiplierLimit = assignMultiplierLimit();
-
-let highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
-let mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
-let lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
-
-let requestCount = 0;
-let currentRequestRate = 0;
-const rateDetectionInterval = setInterval(setcurrentRate, 1000);
-
-function setcurrentRate() {
-  currentRequestRate = requestCount;
-  requestCount = 0;
-}*/
-
-/*const highPriorityInterval = setInterval(function () {
-  sendToNotary(highDB, highDBSize, highLimit, targetURL);
-}, 1000);
-const mediumPriorityInterval = setInterval(function () {
-  sendToNotary(mediumDB, mediumDBSize, mediumLimit, targetURL);
-}, 1000);
-const lowPriorityInterval = setInterval(function () {
-  sendToNotary(lowDB, lowDBSize, lowLimit, targetURL);
-}, 1000);*/
+let highLimit = 0;
+let mediumLimit = 0;
+let lowLimit = 0;
 
 setNewMultiplierLimit();
 const newMultiplierInterval = setInterval(setNewMultiplierLimit, THRESHOLD_INTERVAL * 1000);
+
+sendToNotary(PRIORITY_TYPE.high, highLimit, targetURL);
+sendToNotary(PRIORITY_TYPE.medium, mediumLimit, targetURL);
+sendToNotary(PRIORITY_TYPE.low, lowLimit, targetURL);
 
 /**
  * Used to kill using Ctrl-C
  */
 process.on('SIGINT', function () {
   log(chalk.bgRed.black(`\nGracefully shutting down from SIGINT (Ctrl-C)`));
-
-  clearInterval(highPriorityInterval);
-  clearInterval(mediumPriorityInterval);
-  clearInterval(lowPriorityInterval);
-
   clearInterval(newMultiplierInterval);
-
   process.exit(69);
 });
 
 function setNewMultiplierLimit() {
-  clearInterval(highPriorityInterval);
-  clearInterval(mediumPriorityInterval);
-  clearInterval(lowPriorityInterval);
-
-  const targetURL = assignTargetURL(HOSTNAME);
   const multiplierLimit = assignMultiplierLimit();
 
-  const highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
-  const mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
-  const lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
+  highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
+  mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
+  lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
 
+  console.log(`Counter: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`);
   log(chalk.bgYellow.black(`New Priority Set! ${multiplierLimit[0]}, ${multiplierLimit[1]}, ${multiplierLimit[2]}`));
-
-  highPriorityInterval = setInterval(function () {
-    sendToNotary(highDB, highDBSize, highLimit, targetURL);
-  }, 1000);
-  mediumPriorityInterval = setInterval(function () {
-    sendToNotary(mediumDB, mediumDBSize, mediumLimit, targetURL);
-  }, 1000);
-  lowPriorityInterval = setInterval(function () {
-    sendToNotary(lowDB, lowDBSize, lowLimit, targetURL);
-  }, 1000);
 }
 
 function isManyPendingHighPriority() {
@@ -242,7 +200,17 @@ function assignMultiplierLimit() {
  * @param {object} db     Level DB object, the database object
  * @param {number} limit  The limit to open the Read Stream API
  */
-function sendToNotary(db, counter, limit, url) {
+function sendToNotary(priority_id, limit, url) {
+  let db;
+
+  if (priority_id == PRIORITY_TYPE.high) {
+    db = highDB;
+  } else if (priority_id == PRIORITY_TYPE.medium) {
+    db = mediumDB;
+  } else if (priority_id == PRIORITY_TYPE.low) {
+    db = lowDB;
+  }
+
   db.createReadStream({
       limit: limit
     })
@@ -256,11 +224,33 @@ function sendToNotary(db, counter, limit, url) {
       executeRequest(option);
 
       db.del(key);
-      counter -= 1;
+      if (priority_id == PRIORITY_TYPE.high) {
+        highDBSize -= 1;
+      } else if (priority_id == PRIORITY_TYPE.medium) {
+        mediumDBSize -= 1;
+      } else if (priority_id == PRIORITY_TYPE.low) {
+        lowDBSize -= 1;
+      }
     })
     .on('error', function (err) {
       log(chalk.red(`Streaming Error! ${err}`));
-    })
+    });
+
+  if (priority_id == PRIORITY_TYPE.high) {
+    setTimeout(function () {
+      sendToNotary(PRIORITY_TYPE.high, highLimit, targetURL);
+    }, 1000);
+
+  } else if (priority_id == PRIORITY_TYPE.medium) {
+    setTimeout(function () {
+      sendToNotary(PRIORITY_TYPE.medium, mediumLimit, targetURL);
+    }, 1000);
+
+  } else if (priority_id == PRIORITY_TYPE.low) {
+    setTimeout(function () {
+      sendToNotary(PRIORITY_TYPE.low, lowLimit, targetURL);
+    }, 1000);
+  }
 }
 
 function createPostRequestOption(url, body) {
