@@ -91,53 +91,20 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
-const THRESHOLD_INTERVAL = 30; // the time threshold (seconds) to apply a new priority rule
+const MAX_THROUGHPUT = 1000; // maximum request per second to the notary node
 
 const targetURL = assignTargetURL(HOSTNAME);
 
-let highLimit = 0;
-let mediumLimit = 0;
-let lowLimit = 0;
-
-setNewMultiplierLimit();
-const newMultiplierInterval = setInterval(setNewMultiplierLimit, THRESHOLD_INTERVAL * 1000);
-
-sendToNotary(PRIORITY_TYPE.high, highLimit, targetURL);
-sendToNotary(PRIORITY_TYPE.medium, mediumLimit, targetURL);
-sendToNotary(PRIORITY_TYPE.low, lowLimit, targetURL);
+prepare();
 
 /**
  * Used to kill using Ctrl-C
  */
 process.on('SIGINT', function () {
   log(chalk.bgRed.black(`\nGracefully shutting down from SIGINT (Ctrl-C)`));
-  clearInterval(newMultiplierInterval);
+  //clearInterval(newMultiplierInterval);
   process.exit(69);
 });
-
-function setNewMultiplierLimit() {
-  const multiplierLimit = assignMultiplierLimit();
-
-  highLimit = multiplierLimit[0] * MAX_THROUGHPUT;
-  mediumLimit = multiplierLimit[1] * MAX_THROUGHPUT;
-  lowLimit = multiplierLimit[2] * MAX_THROUGHPUT;
-
-  console.log(`Counter: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`);
-  log(chalk.bgYellow.black(`New Priority Set! ${multiplierLimit[0]}, ${multiplierLimit[1]}, ${multiplierLimit[2]}`));
-}
-
-function isManyPendingHighPriority() {
-  return (highDBSize > MAX_THROUGHPUT / 3 * THRESHOLD_INTERVAL);
-}
-
-function isManyPendingMediumPriority() {
-  return (mediumDBSize > MAX_THROUGHPUT / 3 * THRESHOLD_INTERVAL);
-}
-
-function isManyPendingLowPriority() {
-  return (lowDBSize > MAX_THROUGHPUT / 3 * THRESHOLD_INTERVAL);
-}
 
 function assignTargetURL(hostname) {
   if (hostname == 'proxy1') {
@@ -164,33 +131,120 @@ function assignTargetURL(hostname) {
  * 
  * This function can returns 8 types of different scenarios.
  */
-function assignMultiplierLimit() {
-  if (isUsingPriority()) {
+// TODO: Add scenario when only one two or one types of priorities
 
-    if (isManyPendingHighPriority() && isManyPendingMediumPriority() && isManyPendingLowPriority()) {
-      return [0.55, 0.30, 0.15];
+function prepare() {
+  const baseMul = [0.5, 0.35, 0.15];
 
-    } else if (isManyPendingHighPriority() && isManyPendingMediumPriority() && !isManyPendingLowPriority()) {
-      return [0.55, 0.40, 0.05];
+  const maxHigh = baseMul[0] * MAX_THROUGHPUT;
+  const maxMedium = baseMul[1] * MAX_THROUGHPUT;
+  const maxLow = baseMul[2] * MAX_THROUGHPUT;
 
-    } else if (isManyPendingHighPriority() && !isManyPendingMediumPriority() && isManyPendingLowPriority()) {
-      return [0.55, 0.05, 0.40];
+  const currentRate = highDBSize + mediumDBSize + lowDBSize;
 
-    } else if (isManyPendingHighPriority() && !isManyPendingMediumPriority() && !isManyPendingLowPriority()) {
-      return [0.90, 0.05, 0.05];
+  if (currentRate > MAX_THROUGHPUT) {
+    // we need priority
 
-    } else if (!isManyPendingHighPriority() && isManyPendingMediumPriority() && isManyPendingLowPriority()) {
-      return [0.05, 0.55, 0.40];
+    if (highDBSize > maxHigh && mediumDBSize > maxMedium && lowDBSize > maxLow) { // case 1
+      sendToNotary(PRIORITY_TYPE.high, maxHigh);
+      sendToNotary(PRIORITY_TYPE.medium, maxMedium);
+      sendToNotary(PRIORITY_TYPE.low, maxLow);
 
-    } else if (!isManyPendingHighPriority() && isManyPendingMediumPriority() && !isManyPendingLowPriority()) {
-      return [0.05, 0.90, 0.05];
+      log(chalk.bgYellow.black(`Case 1`));
 
-    } else if (!isManyPendingHighPriority() && !isManyPendingMediumPriority() && isManyPendingLowPriority()) {
-      return [0.05, 0.05, 0.90];
+    } else if (highDBSize > maxHigh && mediumDBSize > maxMedium && lowDBSize <= maxLow) { // case 2
+      
+      let newMaxHigh = maxHigh + (maxLow - lowDBSize);
+      let newMaxMedium;
+
+      if (highDBSize > newMaxHigh) {
+        newMaxMedium = maxMedium;
+      } else {
+        newMaxMedium = maxMedium + (newMaxHigh - highDBSize);
+      }
+
+      sendToNotary(PRIORITY_TYPE.high, newMaxHigh);
+      sendToNotary(PRIORITY_TYPE.medium, newMaxMedium);
+      sendToNotary(PRIORITY_TYPE.low, -1);
+
+      log(chalk.bgYellow.black(`Case 2`));
+
+    } else if (highDBSize > maxHigh && mediumDBSize <= maxMedium && lowDBSize > maxLow) { // case 3
+
+      let newMaxHigh = maxHigh + (maxMedium - mediumDBSize);
+      let newMaxLow;
+
+      if (highDBSize > newMaxHigh) {
+        newMaxLow = maxLow;
+      } else {
+        newMaxLow = maxLow + (newMaxHigh - highDBSize);
+      }
+
+      sendToNotary(PRIORITY_TYPE.high, newMaxHigh);
+      sendToNotary(PRIORITY_TYPE.medium, -1);
+      sendToNotary(PRIORITY_TYPE.low, newMaxLow);
+
+      log(chalk.bgYellow.black(`Case 3`));
+
+    } else if (highDBSize > maxHigh && mediumDBSize <= maxMedium && lowDBSize <= maxLow) { // case 4
+
+      let newMaxHigh = maxHigh + (maxMedium - mediumDBSize) + (maxLow - lowDBSize);
+
+      sendToNotary(PRIORITY_TYPE.high, newMaxHigh);
+      sendToNotary(PRIORITY_TYPE.medium, -1);
+      sendToNotary(PRIORITY_TYPE.low, -1);
+
+      log(chalk.bgYellow.black(`Case 4`));
+
+    } else if (highDBSize <= maxHigh && mediumDBSize > maxMedium && lowDBSize > maxLow) { // case 5
+
+      let newMaxMedium = maxMedium + (maxHigh - highDBSize);
+      let newMaxLow;
+
+      if (mediumDBSize > newMaxMedium) {
+        newMaxLow = maxLow;
+      } else {
+        newMaxLow = maxLow + (newMaxMedium - mediumDBSize);
+      }
+
+      sendToNotary(PRIORITY_TYPE.high, -1);
+      sendToNotary(PRIORITY_TYPE.medium, newMaxMedium);
+      sendToNotary(PRIORITY_TYPE.low, newMaxLow);
+
+      log(chalk.bgYellow.black(`Case 5`));
+
+    } else if (highDBSize <= maxHigh && mediumDBSize > maxMedium && lowDBSize <= maxLow) { // case 6
+
+      let newMaxMedium = maxMedium + (maxHigh - highDBSize) + (maxLow - lowDBSize);
+
+      sendToNotary(PRIORITY_TYPE.high, -1);
+      sendToNotary(PRIORITY_TYPE.medium, newMaxMedium);
+      sendToNotary(PRIORITY_TYPE.low, -1);
+
+      log(chalk.bgYellow.black(`Case 6`));
+
+    } else if (highDBSize <= maxHigh && mediumDBSize <= maxMedium && lowDBSize > maxLow) { // case 7
+
+      let newMaxLow = maxLow + (maxHigh - highDBSize) + (maxMedium - mediumDBSize);
+
+      sendToNotary(PRIORITY_TYPE.high, -1);
+      sendToNotary(PRIORITY_TYPE.medium, -1);
+      sendToNotary(PRIORITY_TYPE.low, newMaxLow);
+
+      log(chalk.bgYellow.black(`Case 7`));
     }
+
+  } else {
+    // no need priority
+
+    sendToNotary(PRIORITY_TYPE.high, -1);
+    sendToNotary(PRIORITY_TYPE.medium, -1);
+    sendToNotary(PRIORITY_TYPE.low, -1);
+
+    log(chalk.bgYellow.black(`Case 8`));
   }
 
-  return [0.34, 0.33, 0.33];
+  setTimeout(prepare, 1000);
 }
 
 /**
@@ -200,7 +254,7 @@ function assignMultiplierLimit() {
  * @param {object} db     Level DB object, the database object
  * @param {number} limit  The limit to open the Read Stream API
  */
-function sendToNotary(priority_id, limit, url) {
+function sendToNotary(priority_id, limit) {
   let db;
 
   if (priority_id == PRIORITY_TYPE.high) {
@@ -218,7 +272,7 @@ function sendToNotary(priority_id, limit, url) {
       const key = data.key.toString('utf8');
       const value = JSON.parse(data.value.toString('utf8'));
 
-      const option = createPostRequestOption(url, {
+      const option = createPostRequestOption(targetURL, {
         data: value
       });
       executeRequest(option);
@@ -235,22 +289,6 @@ function sendToNotary(priority_id, limit, url) {
     .on('error', function (err) {
       log(chalk.red(`Streaming Error! ${err}`));
     });
-
-  if (priority_id == PRIORITY_TYPE.high) {
-    setTimeout(function () {
-      sendToNotary(PRIORITY_TYPE.high, highLimit, targetURL);
-    }, 1000);
-
-  } else if (priority_id == PRIORITY_TYPE.medium) {
-    setTimeout(function () {
-      sendToNotary(PRIORITY_TYPE.medium, mediumLimit, targetURL);
-    }, 1000);
-
-  } else if (priority_id == PRIORITY_TYPE.low) {
-    setTimeout(function () {
-      sendToNotary(PRIORITY_TYPE.low, lowLimit, targetURL);
-    }, 1000);
-  }
 }
 
 function createPostRequestOption(url, body) {
