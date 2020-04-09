@@ -95,7 +95,11 @@ const MAX_THROUGHPUT = 1000; // maximum request per second to the notary node
 
 const targetURL = assignTargetURL(HOSTNAME);
 
-prepare();
+if (isUsingPriority()) {
+  prepareWithPriority();
+} else {
+  prepareWithoutPriority();
+}
 
 /**
  * Used to kill using Ctrl-C
@@ -106,6 +110,10 @@ process.on('SIGINT', function () {
   process.exit(69);
 });
 
+/**
+ * 
+ * @param {string} hostname 
+ */
 function assignTargetURL(hostname) {
   if (hostname == 'proxy1') {
     return 'http://notary1.local:3000/transact';
@@ -133,7 +141,7 @@ function assignTargetURL(hostname) {
  */
 // TODO: Add scenario when only one two or one types of priorities
 
-function prepare() {
+function prepareWithPriority() {
   const baseMul = [0.5, 0.35, 0.15];
 
   const maxHigh = baseMul[0] * MAX_THROUGHPUT;
@@ -244,7 +252,37 @@ function prepare() {
     log(chalk.bgYellow.black(`Case 8`));
   }
 
-  setTimeout(prepare, 1000);
+  setTimeout(prepareWithPriority, 1000);
+}
+
+/**
+ * Prepare message for without priority
+ */
+function prepareWithoutPriority() {
+  const baseMul = [0.33, 0.33, 0.33];
+
+  const maxHigh = baseMul[0] * MAX_THROUGHPUT;
+  const maxMedium = baseMul[1] * MAX_THROUGHPUT;
+  const maxLow = baseMul[2] * MAX_THROUGHPUT;
+
+  const currentRate = highDBSize + mediumDBSize + lowDBSize;
+
+  if (currentRate > MAX_THROUGHPUT) {
+    sendToNotary(PRIORITY_TYPE.high, maxHigh);
+    sendToNotary(PRIORITY_TYPE.medium, maxMedium);
+    sendToNotary(PRIORITY_TYPE.low, maxLow);
+
+    log(chalk.bgYellow.black(`Case A`));
+
+  } else {
+    sendToNotary(PRIORITY_TYPE.high, -1);
+    sendToNotary(PRIORITY_TYPE.medium, -1);
+    sendToNotary(PRIORITY_TYPE.low, -1);
+
+    log(chalk.bgYellow.black(`Case B`));
+  }
+
+  setTimeout(prepareWithoutPriority, 1000);
 }
 
 /**
