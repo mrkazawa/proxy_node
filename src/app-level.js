@@ -91,7 +91,7 @@ app.listen(HTTP_PORT, () => {
 
 //--------------------------- Sender Code ---------------------------//
 
-const MAX_THROUGHPUT = 1000; // maximum request per second to the notary node
+const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
 
 const targetURL = assignTargetURL(HOSTNAME);
 
@@ -106,7 +106,6 @@ if (isUsingPriority()) {
  */
 process.on('SIGINT', function () {
   log(chalk.bgRed.black(`\nGracefully shutting down from SIGINT (Ctrl-C)`));
-  //clearInterval(newMultiplierInterval);
   process.exit(69);
 });
 
