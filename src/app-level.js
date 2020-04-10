@@ -2,21 +2,23 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 const fs = require('fs-extra');
-const chalk = require('chalk');
-const log = console.log;
-
-const os = require("os");
-const HOSTNAME = os.hostname();
-const HTTP_PORT = process.env.HTTP_PORT || 3001;
-const isUsingPriority = () => {
-  return (process.env.USING_PRIORITY == "true")
-};
-
+const RateLimiter = require('limiter').RateLimiter;
 const levelup = require('levelup');
 const leveldown = require('leveldown');
 const {
   v1: uuidV1
 } = require('uuid');
+
+const chalk = require('chalk');
+const log = console.log;
+
+const os = require("os");
+const HOSTNAME = os.hostname();
+
+const HTTP_PORT = process.env.HTTP_PORT || 3001;
+const isUsingPriority = () => {
+  return (process.env.USING_PRIORITY == "true");
+};
 
 fs.emptyDirSync('./high_priority');
 fs.emptyDirSync('./medium_priority');
@@ -103,7 +105,6 @@ app.listen(HTTP_PORT, () => {
 //--------------------------- Sender Code ---------------------------//
 
 const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
-
 const targetURL = assignTargetURL(HOSTNAME);
 
 if (isUsingPriority()) {
@@ -121,8 +122,10 @@ process.on('SIGINT', function () {
 });
 
 /**
+ * Assign the URL of the notary node according to the hostname of the machine.
+ * It is a one-to-one mapping between the proxy machine with the notary machine.
  * 
- * @param {string} hostname 
+ * @param {string} hostname   The hostname of the given machine
  */
 function assignTargetURL(hostname) {
   if (hostname == 'proxy1') {
@@ -140,16 +143,13 @@ function assignTargetURL(hostname) {
 }
 
 /**
- * Create a softmax array for multiplier limit for Stream API.
- * The assignment is based on the current load, whether there are
- * many pending requests in the store or not.
+ * Prepare the strategy to send contents of the database to
+ * the notary node.
  * 
- * There are 8 scenarios following 3-bit binary permutation, which is
- * 2 x 2 x 2 = 8
- * 
- * This function can returns 8 types of different scenarios.
+ * This method will apply the priority, therefore, it will try to
+ * include as many higher priority requests first.
+ * The order is HIGH, MEDIUM, and then LOW priority.
  */
-
 function prepareWithPriority() {
   const baseMul = [0.5, 0.35, 0.15];
 
@@ -160,7 +160,6 @@ function prepareWithPriority() {
   const currentRate = highDBSize + mediumDBSize + lowDBSize;
 
   if (currentRate > MAX_THROUGHPUT) {
-    // we need priority
 
     if (highDBSize > maxHigh && mediumDBSize > maxMedium && lowDBSize > maxLow) { // case 1
       sendToNotary(PRIORITY_TYPE.high, maxHigh);
@@ -252,8 +251,6 @@ function prepareWithPriority() {
     }
 
   } else {
-    // no need priority
-
     sendToNotary(PRIORITY_TYPE.high, -1);
     sendToNotary(PRIORITY_TYPE.medium, -1);
     sendToNotary(PRIORITY_TYPE.low, -1);
@@ -261,11 +258,16 @@ function prepareWithPriority() {
     log(chalk.bgYellow.black(`Case 8`));
   }
 
-  setTimeout(prepareWithPriority, 1000);
+  setTimeout(prepareWithPriority, 1000); // loop
 }
 
 /**
- * Prepare message for without priority
+ * Prepare the strategy to send contents of the database to
+ * the notary node.
+ * 
+ * This method will not apply any priority, therefore, it will
+ * try to balance between HIGH, MEDIUM, and LOW priority requests
+ * will equal distribution.
  */
 function prepareWithoutPriority() {
   const baseMul = [0.33, 0.33, 0.33];
@@ -291,18 +293,18 @@ function prepareWithoutPriority() {
     log(chalk.bgYellow.black(`Case B`));
   }
 
-  setTimeout(prepareWithoutPriority, 1000);
+  setTimeout(prepareWithoutPriority, 1000); // loop
 }
 
 /**
- * Iterate over the contents of level DB and send the value to
- * the corresponding notary nodes.
+ * Sending contents from database to the notary node.
+ * First, the method will iterate over the contents of level DB
+ * Then, it sends the value to the corresponding notary nodes.
  * 
- * @param {object} db     Level DB object, the database object
- * @param {number} limit  The limit to open the Read Stream API
+ * @param {number} priority_id  The priority id of the request to be sent
+ * @param {number} limit        The limit to open the Read Stream API
  */
 function sendToNotary(priority_id, limit) {
-  var RateLimiter = require('limiter').RateLimiter;
   let limiter = new RateLimiter(limit, 1000);
 
   let db;
@@ -344,6 +346,12 @@ function sendToNotary(priority_id, limit) {
     });
 }
 
+/**
+ * Create a request object for axios module.
+ * 
+ * @param {string} url    The string of the target URL
+ * @param {object} body   The JSON object to be included in the body of request
+ */
 function createPostRequestOption(url, body) {
   return {
     method: 'POST',
@@ -352,6 +360,14 @@ function createPostRequestOption(url, body) {
   };
 }
 
+/**
+ * Execute the HTTP request using axios module.
+ * This method will not process the response. However, 
+ * it will display error when the status code is not 200.
+ * It will also throw any possible error.
+ * 
+ * @param {object} options  The request object to be executed
+ */
 function executeRequest(options) {
   axios(options).then(function (response) {
     if (response.status != 200) {
