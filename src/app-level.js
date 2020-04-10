@@ -1,6 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const rp = require('request-promise-native');
+const axios = require('axios');
 const fs = require('fs-extra');
 const chalk = require('chalk');
 const log = console.log;
@@ -26,11 +26,6 @@ const highDB = levelup(leveldown('./high_priority'));
 const mediumDB = levelup(leveldown('./medium_priority'));
 const lowDB = levelup(leveldown('./low_priority'));
 
-// use our own counter because we cannot query size from leveldown
-let highDBSize = 0;
-let mediumDBSize = 0;
-let lowDBSize = 0;
-
 if (
   !highDB.supports.permanence ||
   !mediumDB.supports.permanence ||
@@ -47,11 +42,18 @@ try {
   throw new Error('Cannot clear database');
 }
 
+// use our own counter because we cannot query size from leveldown
+let highDBSize = 0;
+let mediumDBSize = 0;
+let lowDBSize = 0;
+
 const PRIORITY_TYPE = {
   high: 1,
   medium: 2,
   low: 3
 };
+
+//--------------------------- Receiver Code ---------------------------//
 
 const app = express();
 app.use(bodyParser.json());
@@ -147,7 +149,6 @@ function assignTargetURL(hostname) {
  * 
  * This function can returns 8 types of different scenarios.
  */
-// TODO: Add scenario when only one two or one types of priorities
 
 function prepareWithPriority() {
   const baseMul = [0.5, 0.35, 0.15];
@@ -169,7 +170,7 @@ function prepareWithPriority() {
       log(chalk.bgYellow.black(`Case 1`));
 
     } else if (highDBSize > maxHigh && mediumDBSize > maxMedium && lowDBSize <= maxLow) { // case 2
-      
+
       let newMaxHigh = maxHigh + (maxLow - lowDBSize);
       let newMaxMedium;
 
@@ -301,6 +302,9 @@ function prepareWithoutPriority() {
  * @param {number} limit  The limit to open the Read Stream API
  */
 function sendToNotary(priority_id, limit) {
+  var RateLimiter = require('limiter').RateLimiter;
+  let limiter = new RateLimiter(limit, 1000);
+
   let db;
 
   if (priority_id == PRIORITY_TYPE.high) {
@@ -321,7 +325,10 @@ function sendToNotary(priority_id, limit) {
       const option = createPostRequestOption(targetURL, {
         data: value
       });
-      executeRequest(option);
+
+      limiter.removeTokens(1, function() {
+        executeRequest(option);
+      });
 
       db.del(key);
       if (priority_id == PRIORITY_TYPE.high) {
@@ -333,26 +340,24 @@ function sendToNotary(priority_id, limit) {
       }
     })
     .on('error', function (err) {
-      log(chalk.red(`Streaming Error! ${err}`));
+      throw new Error(`Streaming Error! ${err}`);
     });
 }
 
 function createPostRequestOption(url, body) {
   return {
     method: 'POST',
-    uri: url,
-    body: body,
-    resolveWithFullResponse: true,
-    json: true, // Automatically stringifies the body to JSON
+    url: url,
+    data: body
   };
 }
 
 function executeRequest(options) {
-  rp(options).then(function (response) {
-    if (response.statusCode != 200) {
-      log(chalk.red(`Error with status code ${response.statusCode}`));
+  axios(options).then(function (response) {
+    if (response.status != 200) {
+      log(chalk.red(`Error with status code ${response.status}`));
     }
   }).catch(function (err) {
-    log(chalk.red(`Error ${err}`));
-  });
+    throw new Error(`Sending Error! ${err}`);
+  });;
 }
