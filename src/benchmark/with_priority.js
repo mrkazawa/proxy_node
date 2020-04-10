@@ -16,6 +16,7 @@ const proxyTwoURL = `http://proxy2.local:3001/relay_request`;
 const proxyThreeURL = `http://proxy3.local:3001/relay_request`;
 const proxyFourURL = `http://proxy4.local:3001/relay_request`;
 
+const isEmptyURL = 'http://proxy1.local:3001/is_empty';
 const txCountPerBlockURL = 'http://notary1.local:3000/tx_count_per_block';
 
 let instances = [];
@@ -42,9 +43,12 @@ instances.forEach(function (instance) {
   registerDoneEvent(instance);
 });
 
+const checkEmptyInterval = setInterval(checkIfEmpty, 5000);
+
 // this is used to kill the instance on CTRL-C
 process.on('SIGINT', function() {
   console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" );
+  clearInterval(checkEmptyInterval);
 
   instances.forEach(function (instance) {
     instance.stop();
@@ -80,6 +84,33 @@ function registerDoneEvent(instance) {
 
     const option = createGetRequestOption(txCountPerBlockURL);
     executeRequest(option);
+  });
+}
+
+/**
+ * Check if all the pending requests in the proxies has been
+ * included in the blockchain.
+ * 
+ * First, it check the status in the proxy machine.
+ * Then, if all pending requests have been processed,
+ * query and save the block count from the notary machine.
+ */
+function checkIfEmpty() {
+  let options = createGetRequestOption(isEmptyURL);
+
+  rp(options).then(function (response) {
+    if (response.statusCode == 200) {
+      if (response.body == 'empty') {
+        log(chalk.cyan(`It is time to check the block count...`));
+ 
+        options = createGetRequestOption(txCountPerBlockURL);
+        executeRequest(options);
+      }
+    } else {
+      log(chalk.red(`Server return error code of ${response.statusCode}`));
+    }
+  }).catch(function (err) {
+    log(chalk.red(`Error checking if empty! ${err}`));
   });
 }
 
@@ -126,7 +157,7 @@ function constructAutoCannonInstance(title, url, priority_id) {
     pipelining: 1, // default
     bailout: 1000, // tolerable number of errors
     //overallRate: 500, // rate of requests to make per second from all connections (set to 500)
-    amount: 1250000, // ITU-T suggests 15,000,000 IoT requests per day (divided by 4, then divided by 3)
+    amount: 10000, // ITU-T suggests 15,000,000 IoT requests per day (divided by 4, then divided by 3)
     duration: 1
   }, console.log);
 }

@@ -98,6 +98,14 @@ app.post('/relay_request', async (req, res) => {
   }
 });
 
+app.get('/is_empty', (req, res) => {
+  if (highDBSize == 0 && mediumDBSize == 0 && lowDBSize == 0) {
+    res.status(200).send('empty');
+  } else {
+    res.status(200).send('not_empty');
+  }
+});
+
 app.listen(HTTP_PORT, () => {
   log(chalk.cyan(`Hit me up on ${HOSTNAME}.local:${HTTP_PORT}`));
 });
