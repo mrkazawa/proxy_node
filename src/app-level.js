@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const rp = require('request-promise-native');
+const fs = require('fs-extra');
 const chalk = require('chalk');
 const log = console.log;
 
@@ -16,6 +17,10 @@ const leveldown = require('leveldown');
 const {
   v1: uuidV1
 } = require('uuid');
+
+fs.emptyDirSync('./high_priority');
+fs.emptyDirSync('./medium_priority');
+fs.emptyDirSync('./low_priority');
 
 const highDB = levelup(leveldown('./high_priority'));
 const mediumDB = levelup(leveldown('./medium_priority'));
@@ -34,9 +39,13 @@ if (
   throw new Error('Persistent storage is required');
 }
 
-highDB.clear();
-mediumDB.clear();
-lowDB.clear();
+try {
+  highDB.clear();
+  mediumDB.clear();
+  lowDB.clear();
+} catch (err) {
+  throw new Error('Cannot clear database');
+}
 
 const PRIORITY_TYPE = {
   high: 1,
