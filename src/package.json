@@ -7,8 +7,8 @@
     "sqlite": "node --experimental-worker app-sqlite.js",
     "level-default": "USING_PRIORITY=false node --experimental-worker app-level.js",
     "level-priority": "USING_PRIORITY=true node --experimental-worker app-level.js",
-    "posters": "node ./examples/run_post.js",
-    "bench-priority": "node ./benchmark/with_priority.js"
+    "bench-priority": "node ./benchmark/with_priority.js",
+    "bench-count": "node ./benchmark/block_count_interval.js"
   },
   "author": "Yustus Oktian",
   "repository": {
@@ -27,8 +27,6 @@
     "leveldown": "^5.6.0",
     "levelup": "^4.3.2",
     "limiter": "^1.1.5",
-    "request": "^2.88.2",
-    "request-promise-native": "^1.0.8",
     "uuid": "^7.0.3"
   }
 }

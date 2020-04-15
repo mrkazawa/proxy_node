@@ -19,6 +19,7 @@ const HTTP_PORT = process.env.HTTP_PORT || 3001;
 const isUsingPriority = () => {
   return (process.env.USING_PRIORITY == "true");
 };
+process.env.UV_THREADPOOL_SIZE = 128;
 
 fs.emptyDirSync('./high_priority');
 fs.emptyDirSync('./medium_priority');
@@ -99,7 +100,7 @@ app.post('/relay_request', async (req, res) => {
 });
 
 app.get('/is_empty', (req, res) => {
-  if (highDBSize == 0 && mediumDBSize == 0 && lowDBSize == 0) {
+  if (highDBSize <= 0 && mediumDBSize <= 0 && lowDBSize <= 0) {
     res.status(200).send('empty');
   } else {
     res.status(200).send('not_empty');
@@ -113,6 +114,7 @@ app.listen(HTTP_PORT, () => {
 //--------------------------- Sender Code ---------------------------//
 
 const MAX_THROUGHPUT = 800; // maximum request per second to the notary node
+const limiter = new RateLimiter(MAX_THROUGHPUT, 1000);
 const targetURL = assignTargetURL(HOSTNAME);
 
 if (isUsingPriority()) {
@@ -125,7 +127,7 @@ if (isUsingPriority()) {
  * Used to kill using Ctrl-C
  */
 process.on('SIGINT', function () {
-  log(chalk.bgRed.black(`\nGracefully shutting down from SIGINT (Ctrl-C)`));
+  log(chalk.bgRed.white(`\nGracefully shutting down from SIGINT (Ctrl-C)`));
   process.exit(69);
 });
 
@@ -137,16 +139,16 @@ process.on('SIGINT', function () {
  */
 function assignTargetURL(hostname) {
   if (hostname == 'proxy1') {
-    return 'http://notary1.local:3000/transact';
+    return 'http://10.0.0.11:3000/transact';
 
   } else if (hostname == 'proxy2') {
-    return `http://notary2.local:3000/transact`;
+    return `http://10.0.0.12:3000/transact`;
 
   } else if (hostname == 'proxy3') {
-    return `http://notary3.local:3000/transact`;
+    return `http://10.0.0.13:3000/transact`;
 
   } else if (hostname == 'proxy4') {
-    return `http://notary4.local:3000/transact`;
+    return `http://10.0.0.14:3000/transact`;
   }
 }
 
@@ -174,7 +176,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, maxMedium);
       sendToNotary(PRIORITY_TYPE.low, maxLow);
 
-      log(chalk.bgYellow.black(`Case 1`));
+      log(chalk.bgYellow.black(`Case 1: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
     } else if (highDBSize > maxHigh && mediumDBSize > maxMedium && lowDBSize <= maxLow) { // case 2
 
@@ -191,7 +193,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, newMaxMedium);
       sendToNotary(PRIORITY_TYPE.low, -1);
 
-      log(chalk.bgYellow.black(`Case 2`));
+      log(chalk.bgYellow.black(`Case 2: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
     } else if (highDBSize > maxHigh && mediumDBSize <= maxMedium && lowDBSize > maxLow) { // case 3
 
@@ -208,7 +210,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, -1);
       sendToNotary(PRIORITY_TYPE.low, newMaxLow);
 
-      log(chalk.bgYellow.black(`Case 3`));
+      log(chalk.bgYellow.black(`Case 3: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
     } else if (highDBSize > maxHigh && mediumDBSize <= maxMedium && lowDBSize <= maxLow) { // case 4
 
@@ -218,7 +220,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, -1);
       sendToNotary(PRIORITY_TYPE.low, -1);
 
-      log(chalk.bgYellow.black(`Case 4`));
+      log(chalk.bgYellow.black(`Case 4: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
     } else if (highDBSize <= maxHigh && mediumDBSize > maxMedium && lowDBSize > maxLow) { // case 5
 
@@ -235,7 +237,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, newMaxMedium);
       sendToNotary(PRIORITY_TYPE.low, newMaxLow);
 
-      log(chalk.bgYellow.black(`Case 5`));
+      log(chalk.bgYellow.black(`Case 5: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
     } else if (highDBSize <= maxHigh && mediumDBSize > maxMedium && lowDBSize <= maxLow) { // case 6
 
@@ -245,7 +247,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, newMaxMedium);
       sendToNotary(PRIORITY_TYPE.low, -1);
 
-      log(chalk.bgYellow.black(`Case 6`));
+      log(chalk.bgYellow.black(`Case 6: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
     } else if (highDBSize <= maxHigh && mediumDBSize <= maxMedium && lowDBSize > maxLow) { // case 7
 
@@ -255,7 +257,7 @@ function prepareWithPriority() {
       sendToNotary(PRIORITY_TYPE.medium, -1);
       sendToNotary(PRIORITY_TYPE.low, newMaxLow);
 
-      log(chalk.bgYellow.black(`Case 7`));
+      log(chalk.bgYellow.black(`Case 7: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
     }
 
   } else {
@@ -263,7 +265,7 @@ function prepareWithPriority() {
     sendToNotary(PRIORITY_TYPE.medium, -1);
     sendToNotary(PRIORITY_TYPE.low, -1);
 
-    log(chalk.bgYellow.black(`Case 8`));
+    log(chalk.bgYellow.black(`Case 8: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
   }
 
   setTimeout(prepareWithPriority, 1000); // loop
@@ -291,14 +293,14 @@ function prepareWithoutPriority() {
     sendToNotary(PRIORITY_TYPE.medium, maxMedium);
     sendToNotary(PRIORITY_TYPE.low, maxLow);
 
-    log(chalk.bgYellow.black(`Case A`));
+    log(chalk.bgYellow.black(`Case A: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
 
   } else {
     sendToNotary(PRIORITY_TYPE.high, -1);
     sendToNotary(PRIORITY_TYPE.medium, -1);
     sendToNotary(PRIORITY_TYPE.low, -1);
 
-    log(chalk.bgYellow.black(`Case B`));
+    log(chalk.bgYellow.black(`Case B: ${highDBSize}, ${mediumDBSize}, ${lowDBSize}`));
   }
 
   setTimeout(prepareWithoutPriority, 1000); // loop
@@ -313,8 +315,6 @@ function prepareWithoutPriority() {
  * @param {number} limit        The limit to open the Read Stream API
  */
 function sendToNotary(priority_id, limit) {
-  let limiter = new RateLimiter(limit, 1000);
-
   let db;
 
   if (priority_id == PRIORITY_TYPE.high) {
@@ -342,11 +342,11 @@ function sendToNotary(priority_id, limit) {
 
       db.del(key);
       if (priority_id == PRIORITY_TYPE.high) {
-        highDBSize -= 1;
+        if (highDBSize > 0) highDBSize -= 1;
       } else if (priority_id == PRIORITY_TYPE.medium) {
-        mediumDBSize -= 1;
+        if (mediumDBSize > 0) mediumDBSize -= 1;
       } else if (priority_id == PRIORITY_TYPE.low) {
-        lowDBSize -= 1;
+        if (lowDBSize > 0) lowDBSize -= 1;
       }
     })
     .on('error', function (err) {
@@ -378,10 +378,19 @@ function createPostRequestOption(url, body) {
  */
 function executeRequest(options) {
   axios(options).then(function (response) {
-    if (response.status != 200) {
-      log(chalk.red(`Error with status code ${response.status}`));
+    // do nothing
+  }).catch(function (error) {
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      throw new Error(`Error With Status Code! ${error.response}`);
+
+    } else if (error.request) {
+      // The request was made but no response was received
+      // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+      // http.ClientRequest in node.js
+      throw new Error(`Error No Response!`);
+      
     }
-  }).catch(function (err) {
-    throw new Error(`Sending Error! ${err}`);
-  });;
+  });
 }
