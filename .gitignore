@@ -50,3 +50,10 @@ doc/
 
 # Box storage for spec
 test/vagrant-spec/boxes/*.box
+
+# ---------------------------------- For VS COde ---------------------------------- #
+.vscode/*
+*.code-workspace
+
+# Local History for Visual Studio Code
+.history/

@@ -26,6 +26,9 @@ Vagrant.configure("2") do |config|
     end
   end
 
+  config.ssh.compression = false
+  config.ssh.keep_alive = true
+
   # Installation (WARNING! the order matters)
   config.vm.provision "shell", path: "shell/base_install.sh", privileged: true
   config.vm.provision "shell", path: "shell/color_prompt.sh", privileged: false
