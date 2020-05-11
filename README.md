@@ -8,7 +8,7 @@ To run the proxy nodes, you also need to run all of core engines in the Notary N
 You need `vagrant` and `virtualbox` for this project.
 So install them first if you do not have it yet in your machine.
 You can download them [here](https://www.vagrantup.com/downloads.html) and [here](https://www.virtualbox.org/wiki/Downloads)
-All of the required softwares and tools has been included in the `Vagrantfile` and it will be installed during the `vagrant up` using shell provisioning scripts in `/shell` directory.
+All of the required softwares and tools has been included in the `Vagrantfile` and it will be installed during the `vagrant up` using shell provisioning scripts in `./shell` directory.
 
 ## Installation ##
 
@@ -22,56 +22,36 @@ foo@ubuntu:~$ cd ~/proxy_node
 foo@ubuntu:~$ vagrant up # if it is our first time, this will take some times
 foo@ubuntu:~$ vagrant rsync-auto
 
-# open another terminal for proxy1
-foo@ubuntu:~$ cd ~/proxy_node
+foo@ubuntu:~$ cd ~/proxy_node # open new terminal for proxy1
 foo@ubuntu:~$ cd vagrant ssh proxy1
 
-# open another terminal for proxy2
-foo@ubuntu:~$ cd ~/proxy_node
+foo@ubuntu:~$ cd ~/proxy_node # open new terminal for proxy2
 foo@ubuntu:~$ cd vagrant ssh proxy2
 
-# open another terminal for proxy3
-foo@ubuntu:~$ cd ~/proxy_node
+foo@ubuntu:~$ cd ~/proxy_node # open new terminal for proxy3
 foo@ubuntu:~$ cd vagrant ssh proxy3
 
-# open another terminal for proxy4
-foo@ubuntu:~$ cd ~/proxy_node
+foo@ubuntu:~$ cd ~/proxy_node # open new terminal for proxy4
 foo@ubuntu:~$ cd vagrant ssh proxy4
 ```
 
-```bash
-git clone https://github.com/mrkazawa/proxy_node.git
-cd ~/proxy_node
-
-vagrant up # if it is our first time, this will take some times
-vagrant rsync-auto
-
-# open another terminal for proxy1
-vagrant ssh proxy1
-# open another terminal for proxy2
-vagrant ssh proxy2
-# open another terminal for proxy3
-vagrant ssh proxy3
-# open another terminal for proxy4
-vagrant ssh proxy4
-```
-
 Inside the SSH instances, we need to install all of the Node JS dependencies.
+Run this in all proxy nodes (`proxy1` to `proxy4`).
 
-```bash
-cd ~/src
-npm install # run this in all proxies (1, 2, 3, and 4)
+```console
+vagrant@proxy1:~$ cd ~/src
+vagrant@proxy1:~$ npm install
 
-npm run-script # show all available NPM commands
+vagrant@proxy1:~$ npm run-script # show all available NPM commands
 ```
 
 Other useful commands, run outside of the SSH instances,
 
-```bash
-cd ~/proxy_node
-vagrant reload # to restart VM
-vagrant halt # to shutdwon VM
-vagrant destroy -f # to completely delete VM
+```console
+foo@ubuntu:~$ cd ~/proxy_node
+foo@ubuntu:~$ vagrant reload # to restart VM
+foo@ubuntu:~$ vagrant halt # to shutdwon VM
+foo@ubuntu:~$ vagrant destroy -f # to completely delete VM
 ```
 
 - - - -
@@ -79,21 +59,32 @@ vagrant destroy -f # to completely delete VM
 ## Running The Proxies ##
 
 The proxy will relay messages from IoT agents to the notary node.
-Therefore, it depends on the notary node.
-The notary node has to be run first.
+Therefore, it depends on the notary node and it has to be run first.
 [Here](https://github.com/mrkazawa/notary_node) is the guide to run the notary node.
 
-Inside the Vagrant VM of the respective proxy, run the following.
+Choose between one of these `proxy-default` or `proxy-priority`.
 
-```bash
-cd ~/src
-npm run proxy-default # without prority feature
-npm run proxy-priority # with priority feature
+* `proxy-default` will run the proxy node wihout priority feature. All the requests from the IoT agents will be processed equally.
+* `proxy-priority` will run the proxy node with priority feature. It will consider the priority tag in the IoT requests and processed them according to the priority.
+
+There are three options for priority tag.
+
+* `priority_id` equals to `1` means it is HIGH_PRIORITY messages, such as "cross-blockchain messages".
+* `priority_id` equals to `2` means it is MEDIUM_PRIORITY messages, such as "security-related application messages".
+* `priority_id` equals to `3` means it is LOW_PRIORITY messages, such as "other application messages".
+
+Inside the Vagrant VM of the respective proxy, run the following.
+Run this in all proxy nodes (`proxy1` to `proxy4`).
+
+```console
+vagrant@proxy1:~$ cd ~/src
+vagrant@proxy1:~$ npm run proxy-default # without prority feature
+vagrant@proxy1:~$ npm run proxy-priority # with priority feature
 ```
 
-You can then start making request to the Proxy nodes.
+You can then start making request to the Proxy nodes by sending application data to these URLs.
 
-```bash
+```txt
 http://proxy1.local:3001/relay_request
 http://proxy2.local:3001/relay_request
 http://proxy3.local:3001/relay_request
@@ -104,9 +95,9 @@ http://proxy4.local:3001/relay_request
 
 ## Benchmarking The Core Engine With Priority ##
 
-The purpose of this benchmarking is to see the behaviour of the Proxy node to prioritize IoT requests from agents according to their `priority_id` tag.
+The purpose of this benchmarking is to see the behaviour of the proxy node in prioritizing IoT requests from agents according to their `priority_id` tag.
 First, lets setup the Notay node.
-The core engine in the notary node need to have the following configuration in their `src/core/config.js`.
+The core engine in the notary node need to have the following configuration in their `./src/core/config.js`.
 
 ```js
 // How long the period of block generation (in milliseconds)
@@ -123,40 +114,34 @@ this.DYNAMIC_REQUEST_POOL_FLAG = true; // set true to enable dynamic request poo
 ```
 
 Then, we need to run the core engine in all four of the notary nodes.
-After that, we begin to run our proxy nodes.
-Open the following codes in each of the proxy VNs (total, you need 4 terminals).
 
-```bash
-cd ~/src
-npm run proxy-default # without prority feature
+```console
+vagrant@notary1:~$ cd ~/src
+vagrant@notary1:~$ npm run core1
 
-# to run the priority version, run the following instead.
-npm run proxy-priority # with priority feature
+vagrant@notary2:~$ npm run core2
+vagrant@notary3:~$ npm run core3
+vagrant@notary4:~$ npm run core4
+```
+
+Once it is running, start the proxy node.
+Run this in all proxy nodes (`proxy1` to `proxy4`).
+Choose between one of these `proxy-default` or `proxy-priority`.
+
+```console
+vagrant@proxy1:~$ cd ~/src
+vagrant@proxy1:~$ npm run proxy-default # without prority feature
+vagrant@proxy1:~$ npm run proxy-priority # with priority feature
 ```
 
 Then, open two new terminals, and run each of these commands in each terminal.
 
-```bash
-# run autocannon instance to send requests to proxies
-npm run bench-prioriy
-
-# background process that will record the number of Tx in block
-# every 5 seconds
-npm run bench-count
+```console
+foo@ubuntu:~$ npm run bench-prioriy # run autocannon instance to send requests to proxies
+foo@ubuntu:~$ npm run bench-count # background process that will record the number of Tx in block every 5 seconds
 ```
 
-```bash
-cd ~/src
-npm run proxy-default # without prority feature
-npm run proxy-priority # with priority feature
-
-# run autocannon instance to send requests to proxies
-npm run bench-prioriy
-
-# background process that will record the number of Tx in block
-# every 5 seconds
-npm run bench-count
-```
+You can get the measurement results from `~/result_block_count.json` and `~/result_autocannon.csv`.
 
 - - - -
 
@@ -166,24 +151,28 @@ If the node cannot ping to one another, perhaps it has the problem with the Avah
 Try to ping to itself using the configured domain in all nodes.
 Then, try to ping one another.
 
-```bash
-ping proxy1.local # run this in proxy #1
-ping proxy2.local # run this in proxy #2
-ping proxy3.local # run this in proxy #3
-ping proxy4.local # run this in proxy #4
+```console
+vagrant@proxy1:~$ ping proxy1.local # run this in proxy #1
+vagrant@proxy2:~$ ping proxy2.local # run this in proxy #2
+vagrant@proxy3:~$ ping proxy3.local # run this in proxy #3
+vagrant@proxy4:~$ ping proxy4.local # run this in proxy #4
 
 # then try to ping one another, this should solves the issues
 ```
 
 When address is already used, run the following to kill the existing application.
+
+```console
+vagrant@proxy1:~$ sudo kill -9 `sudo lsof -t -i:3001` # kill app that use 3001
+vagrant@proxy1:~$ sudo kill -9 $(sudo lsof -t -i:9001) # kill app that use 9001
+```
+
 If for some reason it is not possible, run the app using other port number.
+To run using 5001 port
 
-```bash
-sudo kill -9 `sudo lsof -t -i:3001` # kill app that use 3001
-sudo kill -9 $(sudo lsof -t -i:9001) # kill app that use 9001
-
-# to run using 5001 port
-HTTP_PORT=5001 USING_PRIORITY=true node --experimental-worker app.js
+```console
+vagrant@proxy1:~$ cd ~/src
+vagrant@proxy1:~$ HTTP_PORT=5001 USING_PRIORITY=true node --experimental-worker app.js
 ```
 
 ## Authors ##
