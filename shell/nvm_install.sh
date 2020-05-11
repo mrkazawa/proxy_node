@@ -1,5 +1,3 @@
-#--------------------------- Installing Node Version Manager ---------------------------#
-
 NVM_INSTALLER=install.sh
 
 cd /home/vagrant

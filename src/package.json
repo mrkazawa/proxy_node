@@ -1,25 +1,28 @@
 {
-  "name": "proxy-classifier",
+  "name": "proxy-node",
   "version": "0.1.0",
   "description": "Proxy server for accessing the Core Engine",
   "main": "app.js",
   "scripts": {
-    "sqlite": "node --experimental-worker app-sqlite.js",
-    "level-default": "USING_PRIORITY=false node --experimental-worker app-level.js",
-    "level-priority": "USING_PRIORITY=true node --experimental-worker app-level.js",
+    "proxy-default": "USING_PRIORITY=false node --experimental-worker app.js",
+    "proxy-priority": "USING_PRIORITY=true node --experimental-worker app.js",
     "bench-priority": "node ./benchmark/with_priority.js",
     "bench-count": "node ./benchmark/block_count_interval.js"
   },
-  "author": "Yustus Oktian",
   "repository": {
     "type": "git",
-    "url": "git@github.com:mrkazawa/proxy_classifier.git"
+    "url": "https://github.com/mrkazawa/proxy_node.git"
   },
+  "keywords": [
+    "proxy-node",
+    "blockchain",
+    "iot"
+  ],
+  "author": "Yustus Oktian",
   "license": "MIT",
   "dependencies": {
     "autocannon": "^4.6.0",
     "axios": "^0.19.2",
-    "better-sqlite3": "^6.0.1",
     "body-parser": "^1.19.0",
     "chalk": "^3.0.0",
     "express": "^4.17.1",
